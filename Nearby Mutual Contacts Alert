@@ -1,0 +1,45 @@
+import firebase_admin
+from firebase_admin import credentials, firestore
+from geopy.distance import geodesic
+
+# Initialize Firebase
+cred = credentials.Certificate("path/to/your/firebase/credentials.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# Lovers' location (assume already fetched from their phones)
+lover1_location = (12.9716, 77.5946)  # Example: Bangalore
+lover2_location = (12.9721, 77.5955)
+
+# Merge both lover's contacts
+lover1_contacts = ["+911234567890", "+919876543210"]
+lover2_contacts = ["+919876543210", "+919999999999"]
+
+merged_contacts = set(lover1_contacts + lover2_contacts)
+
+# Distance threshold (in kilometers)
+DIST_THRESHOLD_KM = 5
+
+def check_nearby_contacts(current_location, contact_list):
+    nearby_contacts = []
+    for phone in contact_list:
+        doc_ref = db.collection('users').document(phone)
+        doc = doc_ref.get()
+        if doc.exists:
+            contact_data = doc.to_dict()
+            if 'location' in contact_data:
+                contact_location = tuple(contact_data['location'])  # [lat, lon]
+                distance = geodesic(current_location, contact_location).km
+                if distance <= DIST_THRESHOLD_KM:
+                    nearby_contacts.append((phone, distance))
+    return nearby_contacts
+
+# Check from both lovers' location
+alert_contacts_1 = check_nearby_contacts(lover1_location, merged_contacts)
+alert_contacts_2 = check_nearby_contacts(lover2_location, merged_contacts)
+
+all_alerts = alert_contacts_1 + alert_contacts_2
+
+# Final alert list
+for contact, dist in all_alerts:
+    print(f"⚠️ Alert: Contact {contact} is just {dist:.2f} km away!")
